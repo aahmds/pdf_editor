@@ -1,6 +1,8 @@
 # PDF Editor Pro
 
-> A full-featured, modern PDF editor that runs entirely in the browser. No files are uploaded to any server — all processing happens client-side.
+> **This project is an AI coding experiment / functional lab.** Built entirely through AI-assisted coding (Claude Code) to explore the capabilities of AI-driven development. It is a working application, not a production product.
+
+A full-featured, modern PDF editor that runs entirely in the browser. No files are uploaded to any server — all processing happens client-side.
 
 ## Features
 
