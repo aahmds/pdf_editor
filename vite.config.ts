@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/pdf_editor/',
   plugins: [react()],
   test: {
     globals: true,
