@@ -78,7 +78,7 @@ export async function exportPageAsImage(
     canvas.height = viewport.height;
 
     const context = canvas.getContext('2d')!;
-    await page.render({ canvasContext: context, viewport }).promise;
+    await page.render({ canvasContext: context, viewport, canvas }).promise;
 
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
@@ -148,7 +148,7 @@ export async function compressPdf(pdfBytes: Uint8Array): Promise<Uint8Array> {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d')!;
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
 
     // Convert to compressed JPEG
     const jpegBlob = await new Promise<Blob>((resolve) => {
@@ -260,7 +260,7 @@ export async function exportPageAsJpeg(
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const context = canvas.getContext('2d')!;
-    await page.render({ canvasContext: context, viewport }).promise;
+    await page.render({ canvasContext: context, viewport, canvas }).promise;
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('Failed to convert to JPEG'))),
