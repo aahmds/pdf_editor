@@ -371,7 +371,7 @@ describe('AnnotationPanel', () => {
 
   describe('selection highlighting', () => {
     it('highlights selected annotation', () => {
-      const { container } = render(
+      render(
         <AnnotationPanel
           annotations={mockAnnotations}
           currentPage={0}
@@ -439,7 +439,7 @@ describe('AnnotationPanel', () => {
         />
       );
 
-      const pageBadges = container.querySelectorAll('.annotation-panel-page-badge');
+      // pageBadges used for coverage
       const currentPageBadge = container.querySelector(
         '.annotation-panel-page-badge--current'
       );

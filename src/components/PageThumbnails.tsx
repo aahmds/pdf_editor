@@ -20,7 +20,6 @@ const BATCH_SIZE = 5; // Render thumbnails in batches to avoid memory spikes
 const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   pdfBytes,
   pdfUrl,
-  getFreshBytes,
   numPages,
   currentPage,
   onPageSelect,
@@ -95,7 +94,7 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) continue;
 
-        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        await page.render({ canvasContext: ctx, viewport: scaledViewport, canvas }).promise;
         setRenderedPages((prev) => new Set(prev).add(pageNum));
       } catch {
         // skip page on error

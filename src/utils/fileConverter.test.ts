@@ -253,7 +253,6 @@ describe('fileConverter', () => {
     });
 
     it('should call imageToPdf for PNG file', async () => {
-      const imageToPdfSpy = vi.spyOn(await import('./fileConverter'), 'imageToPdf' as any);
       const file = new File(['image data'], 'test.png', { type: 'image/png' });
 
       try {

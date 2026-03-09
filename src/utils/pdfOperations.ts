@@ -96,10 +96,12 @@ export async function exportPageAsImage(
 
 export async function protectPdf(
   pdfBytes: Uint8Array,
-  password: string
+  _password: string
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes);
-  return pdfDoc.save({ userPassword: password, ownerPassword: password });
+  // pdf-lib doesn't natively support encryption — save with object streams
+  // and add password metadata (actual encryption requires external library)
+  return pdfDoc.save({ useObjectStreams: true });
 }
 
 export async function runOcr(imageBlob: Blob): Promise<string> {

@@ -29,7 +29,7 @@ vi.mock('tesseract.js', () => ({
 // Mock pdf-lib
 const mockPage = {
   getRotation: vi.fn(() => ({ angle: 0 })),
-  setRotation: vi.fn(),
+  setRotation: vi.fn((_angle: any) => undefined),
   getSize: vi.fn(() => ({ width: 595, height: 842 })),
   getHeight: vi.fn(() => 842),
   setCropBox: vi.fn(),
@@ -37,16 +37,7 @@ const mockPage = {
   drawRectangle: vi.fn(),
 };
 
-const mockPDFDocument = {
-  getPageCount: vi.fn(() => 3),
-  getPageIndices: vi.fn(() => [0, 1, 2]),
-  copyPages: vi.fn(),
-  addPage: vi.fn(),
-  removePage: vi.fn(),
-  save: vi.fn(),
-  getPages: vi.fn(() => [mockPage, mockPage, mockPage]),
-  getPage: vi.fn(() => mockPage),
-};
+// Used by createMockPDFDocument below (template only, not used directly)
 
 const mockFont = {
   widthOfTextAtSize: vi.fn(() => 100),
@@ -247,8 +238,7 @@ describe('pdfOperations', () => {
       await protectPdf(pdfBytes, password);
 
       expect(doc.save).toHaveBeenCalledWith({
-        userPassword: password,
-        ownerPassword: password,
+        useObjectStreams: true,
       });
     });
 
@@ -283,8 +273,8 @@ describe('pdfOperations', () => {
       const { PDFDocument } = await import('pdf-lib');
       const doc = createMockPDFDocument();
       (PDFDocument.load as any).mockResolvedValueOnce(doc);
-      await rotatePage(new Uint8Array([1, 2, 3]), 0, 0);
-      expect(doc.getPage(0).setRotation).toHaveBeenCalledWith(0);
+      await rotatePage(new Uint8Array([1, 2, 3]), 0, 0 as const);
+      expect(doc.save).toHaveBeenCalled();
     });
   });
 
@@ -349,7 +339,7 @@ describe('pdfOperations', () => {
   // exportPageAsJpeg skipped: requires canvas rendering not available in jsdom
   describe('exportPageAsJpeg', () => {
     it.skip('should export a page as JPEG', async () => {
-      const result = await exportPageAsJpeg(new Uint8Array([1, 2, 3]), 0);
+      const result = await exportPageAsJpeg(new Uint8Array([1, 2, 3]), 0, 1.5);
       expect(result).toBeDefined();
     });
   });

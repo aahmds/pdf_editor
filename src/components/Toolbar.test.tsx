@@ -34,6 +34,16 @@ const defaultProps = {
   onExportImages: vi.fn(),
   onPasswordProtect: vi.fn(),
   onOcr: vi.fn(),
+  onRotatePage: vi.fn(),
+  onCompress: vi.fn(),
+  onWatermark: vi.fn(),
+  onAddPageNumbers: vi.fn(),
+  onCropPage: vi.fn(),
+  onExportJpeg: vi.fn(),
+  onSearch: vi.fn(),
+  onPrint: vi.fn(),
+  stampType: 'none' as const,
+  onStampTypeChange: vi.fn(),
 };
 
 describe('Toolbar', () => {

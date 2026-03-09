@@ -9,7 +9,6 @@ import { TextInputModal } from './TextInputModal';
 import PageThumbnails from './PageThumbnails';
 import AnnotationPanel from './AnnotationPanel';
 import {
-  mergePdfs,
   splitPdf,
   deletePage,
   reorderPages,
@@ -89,7 +88,7 @@ export function Editor() {
   // Helper to reload PDF from modified bytes
   const reloadFromBytes = useCallback(
     async (bytes: Uint8Array, fileName: string) => {
-      const file = new File([bytes], fileName, { type: 'application/pdf' });
+      const file = new File([bytes.buffer as ArrayBuffer], fileName, { type: 'application/pdf' });
       await loadFile(file);
     },
     [loadFile]
@@ -310,7 +309,7 @@ export function Editor() {
 
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(
-        new Blob([mergedBytes], { type: 'application/pdf' }),
+        new Blob([mergedBytes.buffer as ArrayBuffer], { type: 'application/pdf' }),
         `merged_${timestamp}.pdf`
       );
 
@@ -338,7 +337,7 @@ export function Editor() {
       parts.forEach((part, index) => {
         const timestamp = new Date().toISOString().slice(0, 10);
         saveAs(
-          new Blob([part], { type: 'application/pdf' }),
+          new Blob([part.buffer as ArrayBuffer], { type: 'application/pdf' }),
           `split_${timestamp}_part${index + 1}.pdf`
         );
       });
@@ -384,7 +383,7 @@ export function Editor() {
 
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(
-        new Blob([protectedBytes], { type: 'application/pdf' }),
+        new Blob([protectedBytes.buffer as ArrayBuffer], { type: 'application/pdf' }),
         `protected_${timestamp}.pdf`
       );
 
@@ -454,7 +453,7 @@ export function Editor() {
       const reduction = Math.round((1 - newSize / originalSize) * 100);
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(
-        new Blob([compressedBytes], { type: 'application/pdf' }),
+        new Blob([compressedBytes.buffer as ArrayBuffer], { type: 'application/pdf' }),
         `compressed_${timestamp}.pdf`
       );
       alert(`PDF compressé ! Réduction: ${reduction}% (${(originalSize / 1024).toFixed(0)} Ko → ${(newSize / 1024).toFixed(0)} Ko)`);
@@ -478,7 +477,7 @@ export function Editor() {
       });
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(
-        new Blob([watermarkedBytes], { type: 'application/pdf' }),
+        new Blob([watermarkedBytes.buffer as ArrayBuffer], { type: 'application/pdf' }),
         `watermarked_${timestamp}.pdf`
       );
       setShowWatermarkModal(false);
@@ -498,7 +497,7 @@ export function Editor() {
       const numberedBytes = await addPageNumbers(bytes);
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(
-        new Blob([numberedBytes], { type: 'application/pdf' }),
+        new Blob([numberedBytes.buffer as ArrayBuffer], { type: 'application/pdf' }),
         `numbered_${timestamp}.pdf`
       );
     } catch (err) {
@@ -559,7 +558,7 @@ export function Editor() {
     try {
       const bytes = getFreshBytes();
       if (!bytes) return;
-      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';

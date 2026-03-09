@@ -30,7 +30,7 @@ export function FileDropzone({ onFileSelect }: FileDropzoneProps) {
       setIsConverting(true);
       try {
         const pdfBytes = await convertToPdf(file);
-        const pdfFile = new File([pdfBytes], file.name.replace(/\.[^.]+$/, '.pdf'), { type: 'application/pdf' });
+        const pdfFile = new File([pdfBytes.buffer as ArrayBuffer], file.name.replace(/\.[^.]+$/, '.pdf'), { type: 'application/pdf' });
         onFileSelect(pdfFile);
       } catch (err) {
         alert('Erreur de conversion: ' + (err instanceof Error ? err.message : 'Erreur inconnue'));
