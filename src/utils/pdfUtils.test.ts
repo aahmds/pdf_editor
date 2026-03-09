@@ -1,6 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getPageCount, downloadPdf } from './pdfUtils';
 
+// Mock pdfWorker (requires DOMMatrix not available in test env)
+vi.mock('./pdfWorker', () => ({
+  pdfjsLib: {
+    getDocument: vi.fn().mockReturnValue({
+      promise: Promise.resolve({
+        numPages: 3,
+        destroy: vi.fn(),
+      }),
+    }),
+  },
+}));
+
 // Mock pdf-lib
 vi.mock('pdf-lib', () => ({
   PDFDocument: {

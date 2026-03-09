@@ -4,7 +4,6 @@ import { usePdfEditor } from './usePdfEditor';
 
 // Mock pdfUtils
 vi.mock('../utils/pdfUtils', () => ({
-  getPageCount: vi.fn().mockResolvedValue(5),
   applyAnnotations: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
   downloadPdf: vi.fn(),
 }));
@@ -37,17 +36,23 @@ describe('usePdfEditor', () => {
 
     expect(result.current.state.file).toBe(mockFile);
     expect(result.current.state.pdfBytes).toBeInstanceOf(Uint8Array);
-    expect(result.current.state.numPages).toBe(5);
+    // numPages starts at 0, will be set by PdfViewer after loading
+    expect(result.current.state.numPages).toBe(0);
     expect(result.current.state.isLoading).toBe(false);
     expect(result.current.state.error).toBeNull();
+
+    // Simulate PdfViewer reporting numPages
+    act(() => {
+      result.current.setNumPages(5);
+    });
+    expect(result.current.state.numPages).toBe(5);
   });
 
   it('should handle loadFile error gracefully', async () => {
-    const { getPageCount } = await import('../utils/pdfUtils');
-    vi.mocked(getPageCount).mockRejectedValueOnce(new Error('Invalid PDF'));
-
     const { result } = renderHook(() => usePdfEditor());
     const mockFile = new File(['bad-content'], 'bad.pdf', { type: 'application/pdf' });
+    // Simulate arrayBuffer throwing
+    mockFile.arrayBuffer = vi.fn().mockRejectedValueOnce(new Error('Invalid PDF'));
 
     await act(async () => {
       await result.current.loadFile(mockFile);

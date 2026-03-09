@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useReducer, useEffect } from 'react';
 import type { PDFState, Annotation, Tool } from '../types';
-import { getPageCount, applyAnnotations, downloadPdf } from '../utils/pdfUtils';
+import { applyAnnotations, downloadPdf } from '../utils/pdfUtils';
 
 const initialState: PDFState = {
   file: null,
   pdfBytes: null,
+  pdfUrl: null,
   numPages: 0,
   currentPage: 0,
   scale: 1.5,
@@ -62,6 +63,7 @@ export function usePdfEditor() {
   const [activeTool, setActiveTool] = useState<Tool>('select');
   const [isSaving, setIsSaving] = useState(false);
   const originalBytesRef = useRef<ArrayBuffer | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
 
   const [history, dispatchHistory] = useReducer(historyReducer, {
     past: [],
@@ -99,9 +101,16 @@ export function usePdfEditor() {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const arrayBuffer = await file.arrayBuffer();
-      originalBytesRef.current = arrayBuffer.slice(0);
-      const pdfBytes = new Uint8Array(arrayBuffer.slice(0));
-      const numPages = await getPageCount(new Uint8Array(arrayBuffer.slice(0)));
+      originalBytesRef.current = arrayBuffer;
+
+      // Revoke previous blob URL to free memory
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+      }
+      // Create blob URL — pdf.js will fetch from it without copying the buffer
+      const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+      const pdfUrl = URL.createObjectURL(blob);
+      pdfUrlRef.current = pdfUrl;
 
       // Try to restore autosaved annotations
       let restoredAnnotations: Annotation[] = [];
@@ -115,10 +124,13 @@ export function usePdfEditor() {
         }
       } catch { /* ignore */ }
 
+      // numPages will be set by PdfViewer after it loads the document
+      // pdfBytes kept as a lightweight marker (1 byte) — real data in originalBytesRef
       setState({
         file,
-        pdfBytes,
-        numPages,
+        pdfBytes: new Uint8Array([1]),
+        pdfUrl,
+        numPages: 0,
         currentPage: 0,
         scale: 1.5,
         annotations: restoredAnnotations,
@@ -143,6 +155,10 @@ export function usePdfEditor() {
   const getFreshBytes = useCallback(() => {
     if (!originalBytesRef.current) return null;
     return new Uint8Array(originalBytesRef.current.slice(0));
+  }, []);
+
+  const setNumPages = useCallback((numPages: number) => {
+    setState((prev) => ({ ...prev, numPages }));
   }, []);
 
   const setCurrentPage = useCallback((page: number) => {
@@ -194,7 +210,8 @@ export function usePdfEditor() {
 
     setIsSaving(true);
     try {
-      const freshBytes = new Uint8Array(originalBytesRef.current.slice(0));
+      // Only copy when saving (pdf-lib modifies the buffer)
+      const freshBytes = new Uint8Array(originalBytesRef.current);
       const modifiedPdfBytes = await applyAnnotations(freshBytes, state.annotations);
       const filename = state.file.name.replace(/\.pdf$/i, '_edited.pdf');
       downloadPdf(modifiedPdfBytes, filename);
@@ -214,6 +231,10 @@ export function usePdfEditor() {
   }, []);
 
   const reset = useCallback(() => {
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
+    }
     setState(initialState);
     setActiveTool('select');
     originalBytesRef.current = null;
@@ -228,6 +249,7 @@ export function usePdfEditor() {
     isSaving,
     loadFile,
     getFreshBytes,
+    setNumPages,
     setCurrentPage,
     setScale,
     addAnnotation,

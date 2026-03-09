@@ -5,6 +5,7 @@ import DrawingCanvas from './DrawingCanvas';
 
 interface PdfViewerProps {
   pdfBytes: Uint8Array | null;
+  pdfUrl?: string | null;
   getFreshBytes: () => Uint8Array | null;
   currentPage: number;
   scale: number;
@@ -21,10 +22,12 @@ interface PdfViewerProps {
   selectedAnnotationId: string | null;
   onSelectionChange: (id: string | null) => void;
   stampType?: string;
+  onNumPages?: (n: number) => void;
 }
 
 export function PdfViewer({
   pdfBytes,
+  pdfUrl,
   getFreshBytes,
   currentPage,
   scale,
@@ -41,6 +44,7 @@ export function PdfViewer({
   selectedAnnotationId,
   onSelectionChange,
   stampType = 'approved',
+  onNumPages,
 }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,7 +55,7 @@ export function PdfViewer({
   const [redactCurrent, setRedactCurrent] = useState<{ x: number; y: number } | null>(null);
   const [pdfReady, setPdfReady] = useState(0);
 
-  // Load PDF document once when pdfBytes change
+  // Load PDF document once when pdfUrl/pdfBytes change
   useEffect(() => {
     if (!pdfBytes) {
       pdfDocRef.current = null;
@@ -60,16 +64,17 @@ export function PdfViewer({
 
     let cancelled = false;
     const loadPdf = async () => {
-      const freshBytes = getFreshBytes();
-      if (!freshBytes) return;
       // Destroy previous document to free memory
       if (pdfDocRef.current) {
         pdfDocRef.current.destroy();
         pdfDocRef.current = null;
       }
-      const pdf = await pdfjsLib.getDocument({ data: freshBytes }).promise;
+      // Use URL if available (zero-copy), fall back to bytes for preview
+      const source = pdfUrl ? { url: pdfUrl } : { data: pdfBytes.slice(0) };
+      const pdf = await pdfjsLib.getDocument(source).promise;
       if (!cancelled) {
         pdfDocRef.current = pdf;
+        onNumPages?.(pdf.numPages);
         setPdfReady((c) => c + 1);
       } else {
         pdf.destroy();
@@ -84,7 +89,7 @@ export function PdfViewer({
         pdfDocRef.current = null;
       }
     };
-  }, [pdfBytes, getFreshBytes]);
+  }, [pdfUrl, pdfBytes]);
 
   // Render current page
   useEffect(() => {

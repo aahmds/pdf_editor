@@ -3,6 +3,7 @@ import { pdfjsLib } from '../utils/pdfWorker';
 
 interface PageThumbnailsProps {
   pdfBytes: Uint8Array | null;
+  pdfUrl?: string | null;
   getFreshBytes: () => Uint8Array | null;
   numPages: number;
   currentPage: number;
@@ -14,9 +15,11 @@ interface PageThumbnailsProps {
 }
 
 const THUMBNAIL_WIDTH = 150;
+const BATCH_SIZE = 5; // Render thumbnails in batches to avoid memory spikes
 
 const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   pdfBytes,
+  pdfUrl,
   getFreshBytes,
   numPages,
   currentPage,
@@ -29,64 +32,114 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const [hoveredPage, setHoveredPage] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+  const listRef = useRef<HTMLDivElement>(null);
+  const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
   useEffect(() => {
     canvasRefs.current = canvasRefs.current.slice(0, numPages);
   }, [numPages]);
 
+  // Load PDF document once for thumbnails
   useEffect(() => {
-    if (!isOpen) return;
-
-    const bytes = getFreshBytes() ?? pdfBytes;
-    if (!bytes || numPages === 0) return;
+    if (!isOpen || !pdfBytes || numPages === 0) return;
 
     let cancelled = false;
 
-    const renderThumbnails = async () => {
-      const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) });
-      let pdfDoc: pdfjsLib.PDFDocumentProxy;
-
+    const loadDoc = async () => {
+      if (pdfDocRef.current) {
+        pdfDocRef.current.destroy();
+        pdfDocRef.current = null;
+      }
       try {
-        pdfDoc = await loadingTask.promise;
-      } catch {
-        return;
-      }
-
-      for (let i = 1; i <= numPages; i++) {
-        if (cancelled) break;
-
-        const canvas = canvasRefs.current[i - 1];
-        if (!canvas) continue;
-
-        try {
-          const page = await pdfDoc.getPage(i);
-          if (cancelled) break;
-
-          const viewport = page.getViewport({ scale: 1 });
-          const scale = THUMBNAIL_WIDTH / viewport.width;
-          const scaledViewport = page.getViewport({ scale });
-
-          canvas.width = scaledViewport.width;
-          canvas.height = scaledViewport.height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-
-          await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-        } catch {
-          // skip page on error
+        const source = pdfUrl ? { url: pdfUrl } : { data: pdfBytes!.slice(0) };
+        const doc = await pdfjsLib.getDocument(source).promise;
+        if (!cancelled) {
+          pdfDocRef.current = doc;
+          setRenderedPages(new Set());
+        } else {
+          doc.destroy();
         }
-      }
-
-      pdfDoc.destroy();
+      } catch { /* ignore */ }
     };
 
-    renderThumbnails();
+    loadDoc();
 
     return () => {
       cancelled = true;
+      if (pdfDocRef.current) {
+        pdfDocRef.current.destroy();
+        pdfDocRef.current = null;
+      }
     };
-  }, [pdfBytes, numPages, isOpen, getFreshBytes]);
+  }, [pdfBytes, numPages, isOpen]);
+
+  // Render a batch of visible thumbnails
+  const renderBatch = React.useCallback(async (pages: number[]) => {
+    const doc = pdfDocRef.current;
+    if (!doc) return;
+
+    for (const pageNum of pages) {
+      const canvas = canvasRefs.current[pageNum - 1];
+      if (!canvas) continue;
+
+      try {
+        const page = await doc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = THUMBNAIL_WIDTH / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
+
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+
+        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        setRenderedPages((prev) => new Set(prev).add(pageNum));
+      } catch {
+        // skip page on error
+      }
+    }
+  }, []);
+
+  // Render initial batch around current page + observe scroll for lazy loading
+  useEffect(() => {
+    if (!isOpen || !pdfDocRef.current || numPages === 0) return;
+
+    // Render a batch around the current page first
+    const start = Math.max(1, currentPage - BATCH_SIZE);
+    const end = Math.min(numPages, currentPage + BATCH_SIZE);
+    const initialPages: number[] = [];
+    for (let i = start; i <= end; i++) initialPages.push(i);
+    renderBatch(initialPages);
+  }, [isOpen, currentPage, numPages, renderBatch, renderedPages.size === 0 ? 0 : 1]);
+
+  // IntersectionObserver for lazy rendering of thumbnails as they scroll into view
+  useEffect(() => {
+    if (!isOpen || !listRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const toRender: number[] = [];
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const pageNum = Number((entry.target as HTMLElement).dataset.page);
+            if (pageNum && !renderedPages.has(pageNum)) {
+              toRender.push(pageNum);
+            }
+          }
+        }
+        if (toRender.length > 0) renderBatch(toRender);
+      },
+      { root: listRef.current, rootMargin: '200px' }
+    );
+
+    const items = listRef.current.querySelectorAll('[data-page]');
+    items.forEach((item) => observer.observe(item));
+
+    return () => observer.disconnect();
+  }, [isOpen, numPages, renderedPages, renderBatch]);
 
   const handleDeleteClick = (e: React.MouseEvent, pageNum: number) => {
     e.stopPropagation();
@@ -129,7 +182,7 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
             Pages ({numPages})
           </div>
 
-          <div className="page-thumbnails-list">
+          <div className="page-thumbnails-list" ref={listRef}>
             {Array.from({ length: numPages }, (_, i) => {
               const pageNum = i + 1;
               const isActive = pageNum === currentPage;
@@ -139,6 +192,7 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
               return (
                 <div
                   key={pageNum}
+                  data-page={pageNum}
                   className={`page-thumbnails-item${isActive ? ' page-thumbnails-item--active' : ''}${isPendingDelete ? ' page-thumbnails-item--confirm-delete' : ''}`}
                   onClick={() => handleThumbnailClick(pageNum)}
                   onMouseEnter={() => setHoveredPage(pageNum)}

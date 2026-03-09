@@ -131,8 +131,46 @@ export async function rotatePage(
 }
 
 export async function compressPdf(pdfBytes: Uint8Array): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  return pdfDoc.save({ useObjectStreams: true });
+  // Strategy: render each page as a compressed JPEG image, then rebuild the PDF.
+  // This significantly reduces file size for image-heavy PDFs.
+  const JPEG_QUALITY = 0.65;
+  const MAX_DPI_SCALE = 1.5; // render at 1.5x for decent quality
+
+  const srcDoc = await pdfjs.getDocument({ data: pdfBytes.slice(0) }).promise;
+  const newDoc = await PDFDocument.create();
+
+  for (let i = 1; i <= srcDoc.numPages; i++) {
+    const page = await srcDoc.getPage(i);
+    const viewport = page.getViewport({ scale: MAX_DPI_SCALE });
+
+    // Render page to canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d')!;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Convert to compressed JPEG
+    const jpegBlob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((b) => resolve(b!), 'image/jpeg', JPEG_QUALITY);
+    });
+    const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
+
+    // Add as a page in the new PDF
+    const img = await newDoc.embedJpg(jpegBytes);
+    // Use original page dimensions (not scaled)
+    const origViewport = page.getViewport({ scale: 1 });
+    const newPage = newDoc.addPage([origViewport.width, origViewport.height]);
+    newPage.drawImage(img, {
+      x: 0,
+      y: 0,
+      width: origViewport.width,
+      height: origViewport.height,
+    });
+  }
+
+  srcDoc.destroy();
+  return newDoc.save({ useObjectStreams: true });
 }
 
 export async function addWatermark(

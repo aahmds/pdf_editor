@@ -28,6 +28,7 @@ export interface Annotation {
 export interface PDFState {
   file: File | null;
   pdfBytes: Uint8Array | null;
+  pdfUrl: string | null;
   numPages: number;
   currentPage: number;
   scale: number;

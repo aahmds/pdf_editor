@@ -39,6 +39,7 @@ export function Editor() {
     isSaving,
     loadFile,
     getFreshBytes,
+    setNumPages,
     setCurrentPage,
     setScale,
     addAnnotation,
@@ -267,13 +268,19 @@ export function Editor() {
     if (mergeFiles.length === 0 || isConverting) return;
     setIsConverting(true);
     try {
-      const currentBytes = getFreshBytes();
-      if (!currentBytes) return;
+      // Deduplicate files by name
+      const seen = new Set<string>();
+      const uniqueFiles = mergeFiles.filter((f) => {
+        if (seen.has(f.name)) return false;
+        seen.add(f.name);
+        return true;
+      });
 
-      // Convert all files to PDF bytes (per-file error handling)
-      const pdfBytesList: Uint8Array[] = [currentBytes];
+      // Convert all selected files to PDF bytes
+      const pdfBytesList: Uint8Array[] = [];
       const failedFiles: string[] = [];
-      for (const file of mergeFiles) {
+
+      for (const file of uniqueFiles) {
         try {
           const pdfBytes = await convertToPdf(file);
           pdfBytesList.push(pdfBytes);
@@ -285,17 +292,20 @@ export function Editor() {
       if (failedFiles.length > 0) {
         alert(`Conversion échouée pour: ${failedFiles.join(', ')}. Les autres fichiers seront fusionnés.`);
       }
-      if (pdfBytesList.length < 2) return; // nothing to merge besides current
+      if (pdfBytesList.length < 1) return;
 
       // Merge all PDF bytes using pdf-lib
+      console.log(`[Merge] Fusion de ${pdfBytesList.length} PDFs...`);
       const mergedDoc = await PDFDocument.create();
-      for (const bytes of pdfBytesList) {
-        const srcDoc = await PDFDocument.load(bytes);
+      for (let i = 0; i < pdfBytesList.length; i++) {
+        const srcDoc = await PDFDocument.load(pdfBytesList[i]);
+        console.log(`[Merge]  PDF ${i}: ${srcDoc.getPageCount()} pages`);
         const pages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
         for (const page of pages) {
           mergedDoc.addPage(page);
         }
       }
+      console.log(`[Merge] Résultat: ${mergedDoc.getPageCount()} pages`);
       const mergedBytes = await mergedDoc.save();
 
       const timestamp = new Date().toISOString().slice(0, 10);
@@ -721,6 +731,7 @@ export function Editor() {
       <div className="editor-content">
         <PageThumbnails
           pdfBytes={state.pdfBytes}
+          pdfUrl={state.pdfUrl}
           getFreshBytes={getFreshBytes}
           numPages={state.numPages}
           currentPage={state.currentPage + 1}
@@ -781,6 +792,7 @@ export function Editor() {
               )}
               <PdfViewer
                 pdfBytes={state.pdfBytes}
+                pdfUrl={state.pdfUrl}
                 getFreshBytes={getFreshBytes}
                 currentPage={state.currentPage}
                 scale={state.scale}
@@ -797,6 +809,7 @@ export function Editor() {
                 selectedAnnotationId={selectedAnnotationId}
                 onSelectionChange={setSelectedAnnotationId}
                 stampType={stampType}
+                onNumPages={setNumPages}
               />
             </>
           )}
@@ -834,7 +847,7 @@ export function Editor() {
             <button className="modal-close" onClick={() => setShowMergeModal(false)} aria-label="Fermer">×</button>
           </div>
           <div className="modal-body">
-            <p>Sélectionnez des fichiers PDF, images (PNG, JPG, WEBP) ou documents (TXT, DOCX) à fusionner avec le document actuel.</p>
+            <p>Sélectionnez les fichiers PDF, images (PNG, JPG, WEBP) ou documents (TXT, DOCX) à fusionner ensemble.</p>
             <input
               type="file"
               multiple
@@ -985,6 +998,7 @@ export function Editor() {
               {state.pdfBytes && (
                 <PdfViewer
                   pdfBytes={state.pdfBytes}
+                  pdfUrl={state.pdfUrl}
                   getFreshBytes={getFreshBytes}
                   currentPage={state.currentPage}
                   scale={1}
